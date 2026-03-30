@@ -1,25 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>TRC Pro Chart</title>
+  <title>TRC Live Chart</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- CSS -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- ethers -->
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+  <!-- Ethers (Cloudflare CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
 
-  <!-- tradingview lightweight -->
-  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <!-- Lightweight Charts (Cloudflare CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.1/lightweight-charts.standalone.production.js"></script>
 </head>
 
 <body>
 
-<div class="topbar">
-  <h2>TRC / USD</h2>
+<div id="header">
+  <h2>TRC / USD Live</h2>
 </div>
+
+<div id="price">Loading...</div>
 
 <div id="chart"></div>
 
-<script src="db.js"></script>
 <script src="app.js"></script>
 
 </body>

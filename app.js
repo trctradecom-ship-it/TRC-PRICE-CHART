@@ -16,11 +16,9 @@ let provider;
 let contract;
 
 // ================= INIT PROVIDER =================
-async function initProvider(){
-
-  for(let rpc of RPCS){
-
-    try{
+async function initProvider() {
+  for (let rpc of RPCS) {
+    try {
       const testProvider = new ethers.providers.JsonRpcProvider(rpc);
       await testProvider.getBlockNumber();
 
@@ -29,89 +27,74 @@ async function initProvider(){
 
       console.log("Connected RPC:", rpc);
       return;
-
-    }catch(e){
+    } catch (e) {
       console.log("RPC failed:", rpc);
     }
-
   }
-
   document.getElementById("price").innerText = "RPC Failed";
 }
 
 // ================= CHART =================
 let chart, series;
+let lastPrice = 100; // initial fallback price
 
-function initChart(){
-
+function initChart() {
   const container = document.getElementById("chart");
 
-  chart = LightweightCharts.createChart(container,{
+  chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
-    height: 500
+    height: 500,
   });
 
   series = chart.addLineSeries();
 
-  // ✅ FORCE SHOW SOMETHING
+  // ✅ INITIAL DUMMY DATA
+  const now = Math.floor(Date.now() / 1000);
   series.setData([
-    { time: 1, value: 100 },
-    { time: 2, value: 120 },
-    { time: 3, value: 110 }
+    { time: now - 20, value: lastPrice },
+    { time: now - 10, value: lastPrice + 5 },
+    { time: now, value: lastPrice - 3 },
   ]);
 }
 
 // ================= LOAD PRICE =================
-async function loadPrice(){
+async function loadPrice() {
+  const now = Math.floor(Date.now() / 1000);
+  let p;
 
-  try{
+  try {
+    if (!contract) throw new Error("No contract");
 
-    if(!contract){
-      document.getElementById("price").innerText = "No Contract";
-      return;
-    }
+    const priceRaw = await contract.usdPrice();
+    p = Number(ethers.utils.formatUnits(priceRaw, 18));
 
-    const price = await contract.usdPrice();
-
-    const p = Number(ethers.utils.formatUnits(price,18));
-
-    console.log("Price:", p);
-
-    if(p === 0){
-      document.getElementById("price").innerText = "Price = 0";
-      return;
-    }
+    if (!p || p === 0) throw new Error("Price = 0");
 
     document.getElementById("price").innerText = "$" + p.toFixed(2);
+    lastPrice = p; // update last valid price
+  } catch (e) {
+    console.warn("Using dummy price", e.message);
 
-    const now = Math.floor(Date.now()/1000);
-
-    series.update({ time: now, value: p });
-
-  }catch(e){
-
-    console.error(e);
-    document.getElementById("price").innerText = "Error fetching price";
-
+    // Generate small random dummy movement around last price
+    const delta = (Math.random() - 0.5) * 2; // -1 to +1
+    p = lastPrice + delta;
+    document.getElementById("price").innerText = "Dummy $" + p.toFixed(2);
+    lastPrice = p;
   }
+
+  // Update chart every 10s
+  series.update({ time: now, value: p });
 }
 
 // ================= START =================
-window.addEventListener("load", async ()=>{
-
+window.addEventListener("load", async () => {
   initChart();
-
   await initProvider();
-
   await loadPrice();
-
   setInterval(loadPrice, 10000);
-
 });
 
 // ================= RESIZE =================
-window.addEventListener("resize", ()=>{
-  if(chart){
-    chart.resize(window.innerWidth, 500);
-  }
+window.addEventListener("resize", () => {
+  if (chart) chart.resize(window.innerWidth, 500);
 });

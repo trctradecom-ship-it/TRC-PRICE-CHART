@@ -2,14 +2,14 @@
 const ICO = "0xA6F33c57891E52258d68BC99c593207E5C1B4a51";
 
 const ABI = [
-"function usdPrice() view returns(uint256)",
-"event TokensPurchased(address indexed buyer,uint256 polPaid,uint256 tokensReceived)",
-"event TokensSold(address indexed seller,uint256 tokensSold,uint256 polReceived)"
+  "function usdPrice() view returns(uint256)",
+  "event TokensPurchased(address indexed buyer,uint256 polPaid,uint256 tokensReceived)",
+  "event TokensSold(address indexed seller,uint256 tokensSold,uint256 polReceived)"
 ];
 
-// FAST + STABLE RPC
+// ✅ STABLE RPC (IMPORTANT FIX)
 const provider = new ethers.providers.JsonRpcProvider(
-  "https://polygon-mainnet.g.alchemy.com/v2/demo"
+  "https://polygon.llamarpc.com"
 );
 
 const contract = new ethers.Contract(ICO, ABI, provider);
@@ -17,46 +17,58 @@ const contract = new ethers.Contract(ICO, ABI, provider);
 // ================= CHART =================
 let chart, series;
 
-function initChart(){
+function initChart() {
 
   const container = document.getElementById("chart");
 
-  chart = LightweightCharts.createChart(container,{
+  chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
     height: 500,
 
-    layout:{
-      background:{color:"#0b0f14"},
-      textColor:"#AAA"
+    layout: {
+      background: { color: "#0b0f14" },
+      textColor: "#AAA"
     },
 
-    grid:{
-      vertLines:{color:"#1a1a1a"},
-      horzLines:{color:"#1a1a1a"}
+    grid: {
+      vertLines: { color: "#1a1a1a" },
+      horzLines: { color: "#1a1a1a" }
     },
 
-    timeScale:{
-      timeVisible:true
+    timeScale: {
+      timeVisible: true,
+      secondsVisible: false
     }
   });
 
   series = chart.addCandlestickSeries({
-    upColor:"#00ff99",
-    downColor:"#ff4d4f",
-    borderUpColor:"#00ff99",
-    borderDownColor:"#ff4d4f",
-    wickUpColor:"#00ff99",
-    wickDownColor:"#ff4d4f"
+    upColor: "#00ff99",
+    downColor: "#ff4d4f",
+    borderUpColor: "#00ff99",
+    borderDownColor: "#ff4d4f",
+    wickUpColor: "#00ff99",
+    wickDownColor: "#ff4d4f"
   });
+
+  // ✅ FORCE INITIAL CANDLE (prevents blank chart)
+  series.setData([
+    {
+      time: Math.floor(Date.now() / 1000),
+      open: 100,
+      high: 100,
+      low: 100,
+      close: 100
+    }
+  ]);
 }
 
 // ================= STATE =================
 let currentCandle = null;
 
-// ================= CREATE CANDLE =================
-function newCandle(price){
+// ================= CREATE NEW CANDLE =================
+function newCandle(price) {
 
-  const time = Math.floor(Date.now()/30)*30;
+  const time = Math.floor(Date.now() / 30) * 30;
 
   currentCandle = {
     time,
@@ -69,73 +81,86 @@ function newCandle(price){
   series.update(currentCandle);
 }
 
-// ================= UPDATE =================
-function updateCandle(price){
+// ================= UPDATE CANDLE =================
+function updateCandle(price) {
 
-  if(!currentCandle){
+  if (!currentCandle) {
     newCandle(price);
     return;
   }
 
   currentCandle.close = price;
 
-  if(price > currentCandle.high) currentCandle.high = price;
-  if(price < currentCandle.low) currentCandle.low = price;
+  if (price > currentCandle.high) currentCandle.high = price;
+  if (price < currentCandle.low) currentCandle.low = price;
 
   series.update(currentCandle);
 }
 
-// ================= PRICE LOAD =================
-async function loadPrice(){
+// ================= LOAD PRICE =================
+async function loadPrice() {
 
-  try{
+  try {
+
+    console.log("Fetching price...");
+
     const price = await contract.usdPrice();
-    const p = Number(ethers.utils.formatUnits(price,18));
+
+    const p = Number(ethers.utils.formatUnits(price, 18));
+
+    console.log("Price:", p);
+
+    if (!p || p === 0) {
+      document.getElementById("price").innerText = "Price unavailable";
+      return;
+    }
 
     document.getElementById("price").innerText = "$" + p.toFixed(2);
 
     updateCandle(p);
 
-  }catch(e){
-    console.error("Price error", e);
+  } catch (e) {
+
+    console.error("Price error:", e);
+    document.getElementById("price").innerText = "Error loading price";
+
   }
 }
 
 // ================= EVENTS =================
-function listenEvents(){
+function listenEvents() {
 
-  contract.on("TokensPurchased", async ()=>{
-    loadPrice();
+  console.log("Listening events...");
+
+  contract.on("TokensPurchased", async () => {
+    console.log("Buy event detected");
+    await loadPrice();
   });
 
-  contract.on("TokensSold", async ()=>{
-    loadPrice();
+  contract.on("TokensSold", async () => {
+    console.log("Sell event detected");
+    await loadPrice();
   });
 
 }
 
-// ================= INIT =================
-async function start(){
+// ================= START =================
+window.addEventListener("load", async () => {
 
   initChart();
 
-  // initial price
   await loadPrice();
 
-  // create new candle every 30 sec
+  // ⏱ update every 30 sec
   setInterval(loadPrice, 30000);
 
-  // live updates
   listenEvents();
 
-}
-
-// ================= START AFTER LOAD =================
-window.addEventListener("load", start);
+});
 
 // ================= RESIZE =================
-window.addEventListener("resize", ()=>{
-  if(chart){
+window.addEventListener("resize", () => {
+  if (chart) {
     chart.resize(window.innerWidth, 500);
   }
 });

@@ -22,17 +22,16 @@
     }
     #chart {
       width: 100%;
-      height: 500px; /* mandatory for chart to show */
+      height: 500px; /* mandatory */
     }
   </style>
 
-  <!-- Ethers.js (Cloudflare CDN) -->
+  <!-- Ethers.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
 
-  <!-- Lightweight Charts (Cloudflare CDN) -->
+  <!-- Lightweight Charts -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.1/lightweight-charts.standalone.production.js"></script>
 </head>
-
 <body>
 
 <div id="header">
@@ -40,7 +39,6 @@
 </div>
 
 <div id="price">Loading...</div>
-
 <div id="chart"></div>
 
 <script>
@@ -65,7 +63,6 @@
 
         provider = testProvider;
         contract = new ethers.Contract(ICO, ABI, provider);
-
         console.log("Connected RPC:", rpc);
         return;
       } catch (e) {

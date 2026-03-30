@@ -1,0 +1,16 @@
+body{
+  margin:0;
+  background:#0b0f14;
+  color:#fff;
+  font-family:Arial;
+}
+
+.topbar{
+  padding:10px;
+  background:#111;
+  border-bottom:1px solid #222;
+}
+
+#chart{
+  height:600px;
+}

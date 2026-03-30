@@ -35,22 +35,37 @@ async function initProvider() {
 }
 
 // ================= CHART =================
-let chart, series;
-let lastPrice = 100; // initial fallback price
+let chart;
+let realSeries, dummySeries;
+let lastPrice = 100;
 
+// ================= INIT CHART =================
 function initChart() {
   const container = document.getElementById("chart");
 
   chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
     height: 500,
+    layout: {
+      backgroundColor: "#000000",
+      textColor: "#ffffff",
+    },
+    grid: {
+      vertLines: { color: "#444" },
+      horzLines: { color: "#444" },
+    },
+    rightPriceScale: { borderVisible: false },
+    timeScale: { borderVisible: false },
   });
 
-  series = chart.addLineSeries();
+  // Two series: one for real, one for dummy
+  realSeries = chart.addLineSeries({ color: "lime", lineWidth: 2 });
+  dummySeries = chart.addLineSeries({ color: "green", lineWidth: 2 });
 
-  // ✅ INITIAL DUMMY DATA
+  // Initial dummy candles
   const now = Math.floor(Date.now() / 1000);
-  series.setData([
+  lastPrice = 100;
+  dummySeries.setData([
     { time: now - 20, value: lastPrice },
     { time: now - 10, value: lastPrice + 5 },
     { time: now, value: lastPrice - 3 },
@@ -61,6 +76,7 @@ function initChart() {
 async function loadPrice() {
   const now = Math.floor(Date.now() / 1000);
   let p;
+  let isReal = false;
 
   try {
     if (!contract) throw new Error("No contract");
@@ -70,20 +86,24 @@ async function loadPrice() {
 
     if (!p || p === 0) throw new Error("Price = 0");
 
-    document.getElementById("price").innerText = "$" + p.toFixed(2);
-    lastPrice = p; // update last valid price
-  } catch (e) {
-    console.warn("Using dummy price", e.message);
-
-    // Generate small random dummy movement around last price
-    const delta = (Math.random() - 0.5) * 2; // -1 to +1
-    p = lastPrice + delta;
-    document.getElementById("price").innerText = "Dummy $" + p.toFixed(2);
+    // Real price
+    isReal = true;
     lastPrice = p;
+    document.getElementById("price").innerText = "Real: $" + p.toFixed(2);
+  } catch (e) {
+    // Dummy price
+    const delta = (Math.random() - 0.5) * 2; // small random movement
+    p = lastPrice + delta;
+    lastPrice = p;
+    document.getElementById("price").innerText = "Dummy: $" + p.toFixed(2);
   }
 
-  // Update chart every 10s
-  series.update({ time: now, value: p });
+  // Update appropriate series
+  if (isReal) {
+    realSeries.update({ time: now, value: p });
+  } else {
+    dummySeries.update({ time: now, value: p });
+  }
 }
 
 // ================= START =================

@@ -7,48 +7,51 @@ const ABI = [
 "event TokensSold(address indexed seller,uint256 tokensSold,uint256 polReceived)"
 ];
 
-const provider = new ethers.providers.JsonRpcProvider("https://polygon-rpc.com");
+// FAST + STABLE RPC
+const provider = new ethers.providers.JsonRpcProvider(
+  "https://polygon-mainnet.g.alchemy.com/v2/demo"
+);
+
 const contract = new ethers.Contract(ICO, ABI, provider);
 
 // ================= CHART =================
-const chart = LightweightCharts.createChart(document.getElementById("chart"), {
-  layout: { background: { color: "#0b0f14" }, textColor: "#AAA" },
-  grid: {
-    vertLines: { color: "#1a1a1a" },
-    horzLines: { color: "#1a1a1a" }
-  },
-  crosshair: { mode: 1 },
-  rightPriceScale: { borderColor: "#333" },
-  timeScale: {
-    borderColor: "#333",
-    timeVisible: true,
-    secondsVisible: false
-  }
-});
+let chart, series;
 
-const series = chart.addCandlestickSeries({
-  upColor: "#00ff99",
-  downColor: "#ff4d4f",
-  borderUpColor: "#00ff99",
-  borderDownColor: "#ff4d4f",
-  wickUpColor: "#00ff99",
-  wickDownColor: "#ff4d4f"
-});
+function initChart(){
+
+  const container = document.getElementById("chart");
+
+  chart = LightweightCharts.createChart(container,{
+    width: container.clientWidth,
+    height: 500,
+
+    layout:{
+      background:{color:"#0b0f14"},
+      textColor:"#AAA"
+    },
+
+    grid:{
+      vertLines:{color:"#1a1a1a"},
+      horzLines:{color:"#1a1a1a"}
+    },
+
+    timeScale:{
+      timeVisible:true
+    }
+  });
+
+  series = chart.addCandlestickSeries({
+    upColor:"#00ff99",
+    downColor:"#ff4d4f",
+    borderUpColor:"#00ff99",
+    borderDownColor:"#ff4d4f",
+    wickUpColor:"#00ff99",
+    wickDownColor:"#ff4d4f"
+  });
+}
 
 // ================= STATE =================
 let currentCandle = null;
-let candles = [];
-
-// ================= LOAD FROM DB =================
-async function loadFromDB(){
-  await initDB();
-  candles = await loadCandles();
-
-  if(candles.length > 0){
-    series.setData(candles);
-    currentCandle = candles[candles.length-1];
-  }
-}
 
 // ================= CREATE CANDLE =================
 function newCandle(price){
@@ -62,9 +65,6 @@ function newCandle(price){
     low: price,
     close: price
   };
-
-  candles.push(currentCandle);
-  saveCandle(currentCandle);
 
   series.update(currentCandle);
 }
@@ -82,51 +82,60 @@ function updateCandle(price){
   if(price > currentCandle.high) currentCandle.high = price;
   if(price < currentCandle.low) currentCandle.low = price;
 
-  saveCandle(currentCandle);
   series.update(currentCandle);
+}
+
+// ================= PRICE LOAD =================
+async function loadPrice(){
+
+  try{
+    const price = await contract.usdPrice();
+    const p = Number(ethers.utils.formatUnits(price,18));
+
+    document.getElementById("price").innerText = "$" + p.toFixed(2);
+
+    updateCandle(p);
+
+  }catch(e){
+    console.error("Price error", e);
+  }
 }
 
 // ================= EVENTS =================
 function listenEvents(){
 
   contract.on("TokensPurchased", async ()=>{
-    const price = await contract.usdPrice();
-    updateCandle(Number(ethers.utils.formatUnits(price,18)));
+    loadPrice();
   });
 
   contract.on("TokensSold", async ()=>{
-    const price = await contract.usdPrice();
-    updateCandle(Number(ethers.utils.formatUnits(price,18)));
+    loadPrice();
   });
 
 }
-
-// ================= INTERVAL =================
-setInterval(async ()=>{
-
-  const price = await contract.usdPrice();
-  const p = Number(ethers.utils.formatUnits(price,18));
-
-  newCandle(p);
-
-},30000);
 
 // ================= INIT =================
 async function start(){
 
-  await loadFromDB();
+  initChart();
 
-  if(!currentCandle){
-    const price = await contract.usdPrice();
-    newCandle(Number(ethers.utils.formatUnits(price,18)));
-  }
+  // initial price
+  await loadPrice();
 
+  // create new candle every 30 sec
+  setInterval(loadPrice, 30000);
+
+  // live updates
   listenEvents();
+
 }
 
-start();
+// ================= START AFTER LOAD =================
+window.addEventListener("load", start);
 
 // ================= RESIZE =================
-window.addEventListener("resize",()=>{
-  chart.resize(window.innerWidth,600);
+window.addEventListener("resize", ()=>{
+  if(chart){
+    chart.resize(window.innerWidth, 500);
+  }
 });

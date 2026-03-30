@@ -2,165 +2,116 @@
 const ICO = "0xA6F33c57891E52258d68BC99c593207E5C1B4a51";
 
 const ABI = [
-  "function usdPrice() view returns(uint256)",
-  "event TokensPurchased(address indexed buyer,uint256 polPaid,uint256 tokensReceived)",
-  "event TokensSold(address indexed seller,uint256 tokensSold,uint256 polReceived)"
+  "function usdPrice() view returns(uint256)"
 ];
 
-// ✅ STABLE RPC (IMPORTANT FIX)
-const provider = new ethers.providers.JsonRpcProvider(
-  "https://polygon.llamarpc.com"
-);
+// ✅ MULTI RPC (AUTO FALLBACK)
+const RPCS = [
+  "https://polygon.llamarpc.com",
+  "https://rpc.ankr.com/polygon",
+  "https://polygon-rpc.com"
+];
 
-const contract = new ethers.Contract(ICO, ABI, provider);
+let provider;
+let contract;
+
+// ================= INIT PROVIDER =================
+async function initProvider(){
+
+  for(let rpc of RPCS){
+
+    try{
+      const testProvider = new ethers.providers.JsonRpcProvider(rpc);
+      await testProvider.getBlockNumber();
+
+      provider = testProvider;
+      contract = new ethers.Contract(ICO, ABI, provider);
+
+      console.log("Connected RPC:", rpc);
+      return;
+
+    }catch(e){
+      console.log("RPC failed:", rpc);
+    }
+
+  }
+
+  document.getElementById("price").innerText = "RPC Failed";
+}
 
 // ================= CHART =================
 let chart, series;
 
-function initChart() {
+function initChart(){
 
   const container = document.getElementById("chart");
 
-  chart = LightweightCharts.createChart(container, {
+  chart = LightweightCharts.createChart(container,{
     width: container.clientWidth,
-    height: 500,
-
-    layout: {
-      background: { color: "#0b0f14" },
-      textColor: "#AAA"
-    },
-
-    grid: {
-      vertLines: { color: "#1a1a1a" },
-      horzLines: { color: "#1a1a1a" }
-    },
-
-    timeScale: {
-      timeVisible: true,
-      secondsVisible: false
-    }
+    height: 500
   });
 
-  series = chart.addCandlestickSeries({
-    upColor: "#00ff99",
-    downColor: "#ff4d4f",
-    borderUpColor: "#00ff99",
-    borderDownColor: "#ff4d4f",
-    wickUpColor: "#00ff99",
-    wickDownColor: "#ff4d4f"
-  });
+  series = chart.addLineSeries();
 
-  // ✅ FORCE INITIAL CANDLE (prevents blank chart)
+  // ✅ FORCE SHOW SOMETHING
   series.setData([
-    {
-      time: Math.floor(Date.now() / 1000),
-      open: 100,
-      high: 100,
-      low: 100,
-      close: 100
-    }
+    { time: 1, value: 100 },
+    { time: 2, value: 120 },
+    { time: 3, value: 110 }
   ]);
 }
 
-// ================= STATE =================
-let currentCandle = null;
-
-// ================= CREATE NEW CANDLE =================
-function newCandle(price) {
-
-  const time = Math.floor(Date.now() / 30) * 30;
-
-  currentCandle = {
-    time,
-    open: price,
-    high: price,
-    low: price,
-    close: price
-  };
-
-  series.update(currentCandle);
-}
-
-// ================= UPDATE CANDLE =================
-function updateCandle(price) {
-
-  if (!currentCandle) {
-    newCandle(price);
-    return;
-  }
-
-  currentCandle.close = price;
-
-  if (price > currentCandle.high) currentCandle.high = price;
-  if (price < currentCandle.low) currentCandle.low = price;
-
-  series.update(currentCandle);
-}
-
 // ================= LOAD PRICE =================
-async function loadPrice() {
+async function loadPrice(){
 
-  try {
+  try{
 
-    console.log("Fetching price...");
+    if(!contract){
+      document.getElementById("price").innerText = "No Contract";
+      return;
+    }
 
     const price = await contract.usdPrice();
 
-    const p = Number(ethers.utils.formatUnits(price, 18));
+    const p = Number(ethers.utils.formatUnits(price,18));
 
     console.log("Price:", p);
 
-    if (!p || p === 0) {
-      document.getElementById("price").innerText = "Price unavailable";
+    if(p === 0){
+      document.getElementById("price").innerText = "Price = 0";
       return;
     }
 
     document.getElementById("price").innerText = "$" + p.toFixed(2);
 
-    updateCandle(p);
+    const now = Math.floor(Date.now()/1000);
 
-  } catch (e) {
+    series.update({ time: now, value: p });
 
-    console.error("Price error:", e);
-    document.getElementById("price").innerText = "Error loading price";
+  }catch(e){
+
+    console.error(e);
+    document.getElementById("price").innerText = "Error fetching price";
 
   }
 }
 
-// ================= EVENTS =================
-function listenEvents() {
-
-  console.log("Listening events...");
-
-  contract.on("TokensPurchased", async () => {
-    console.log("Buy event detected");
-    await loadPrice();
-  });
-
-  contract.on("TokensSold", async () => {
-    console.log("Sell event detected");
-    await loadPrice();
-  });
-
-}
-
 // ================= START =================
-window.addEventListener("load", async () => {
+window.addEventListener("load", async ()=>{
 
   initChart();
 
+  await initProvider();
+
   await loadPrice();
 
-  // ⏱ update every 30 sec
-  setInterval(loadPrice, 30000);
-
-  listenEvents();
+  setInterval(loadPrice, 10000);
 
 });
 
 // ================= RESIZE =================
-window.addEventListener("resize", () => {
-  if (chart) {
+window.addEventListener("resize", ()=>{
+  if(chart){
     chart.resize(window.innerWidth, 500);
   }
 });
